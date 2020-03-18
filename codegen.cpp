@@ -12,6 +12,8 @@ enum NodeKind
     ND_LT,  // <
     ND_LE,  // <=
     ND_NUM, // 整数
+    ND_ASSIGN, // =
+    ND_LVAR    // ローカル変数
 };
 
 // 抽象構文木のノードの型
@@ -21,6 +23,8 @@ struct Node
     Node *lhs;     // 左辺
     Node *rhs;     // 右辺
     int val;       // kindがND_NUMの場合のみ使う
+    int offset;    // kindがND_LVARの場合のみ使う
+    
     Node() {}
     Node(NodeKind kind, Node *lhs, Node *rhs){
         this->kind = kind;
@@ -33,10 +37,34 @@ struct Node
     }
 };
 
+void gen_lval(Node *node) {
+  if (node->kind != ND_LVAR)
+    error("代入の左辺値が変数ではありません");
+
+  printf("  mov rax, rbp\n");
+  printf("  sub rax, %d\n", node->offset);
+  printf("  push rax\n");
+}
 
 void gen(Node *node) {
-  if (node->kind == ND_NUM) {
+  switch (node->kind) {
+  case ND_NUM:
     printf("  push %d\n", node->val);
+    return;
+  case ND_LVAR:
+    gen_lval(node);
+    printf("  pop rax\n");
+    printf("  mov rax, [rax]\n");
+    printf("  push rax\n");
+    return;
+  case ND_ASSIGN:
+    gen_lval(node->lhs);
+    gen(node->rhs);
+
+    printf("  pop rdi\n");
+    printf("  pop rax\n");
+    printf("  mov [rax], rdi\n");
+    printf("  push rdi\n");
     return;
   }
 
@@ -85,16 +113,41 @@ void gen(Node *node) {
   printf("  push rax\n");
 }
 
-
+void  program();
+Node *stmt();
 Node *expr();
+Node *assign();
 Node *equality();
 Node *relational();
 Node *add();
 Node *mul();
 Node *unary();
 Node *primary();
+
+Node *code[100];
+
+void program(){
+  int i = 0;
+  while(!at_eof())code[i++] = stmt();
+  code[i] = NULL;
+}
+
+
+Node *stmt(){
+  Node *node = expr();
+  expect(";");
+  return node;
+}
+
+Node *assign(){
+  Node *node = equality();
+  if(consume("="))
+    node = new Node(ND_ASSIGN,node,assign());
+  return node;
+}
+
 Node *expr() {
-  return equality();
+  return assign();
 }
 Node *equality(){
   Node *node = relational();
@@ -156,6 +209,13 @@ Node *unary(){
   return primary();
 }
 
+#include <map>
+using std::map;
+using std::string;
+map<string,int> locals; // ローカル変数<名前,RBPからのオフセット>
+
+
+// primary    = num | ident | "(" expr ")"
 Node *primary() {
 
   // 次のトークンが"("なら、"(" expr ")"のはず
@@ -165,6 +225,27 @@ Node *primary() {
     return node;
   }
 
+
+  Token *tok = consume_ident();
+  if (tok) {
+
+    Node *node = (Node*)calloc(1, sizeof(Node));
+    node->kind = ND_LVAR;
+    
+    string str = string(tok->str);
+    str = str.substr(0,tok->len);
+    int lvar = locals[str];
+    if(lvar != 0){
+      node->offset = lvar;
+    }else{
+      int offset = (locals.size()+1) * 8;
+      node->offset = offset;
+      locals[str]  = offset;
+    }
+
+    token = tok->next;
+    return node;
+  }
   // そうでなければ数値のはず
   return new Node(expect_number());
 }

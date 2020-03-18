@@ -1,33 +1,17 @@
 #include "Ccompiler.h"
+#include <string>
+#include <map>
 
-
-// トークンの種類
-enum TokenKind
+// 新しいトークンを作成してcurに繋げる
+Token::Token(TokenKind kind, Token *cur, char *str,int len)
 {
-    TK_RESERVED, // 記号
-    TK_NUM,      // 整数トークン
-    TK_EOF,      // 入力の終わりを表すトークン
-};
+    this->kind = kind;
+    this->str = str;
+    cur->next = this;
+    this->len = len;
+}
+Token::Token(){};
 
-// トークン型
-struct Token
-{
-    TokenKind kind; // トークンの型
-    Token *next;    // 次の入力トークン
-    int val;        // kindがTK_NUMの場合、その数値
-    char *str;      // トークン文字列
-    int len;
-
-    // 新しいトークンを作成してcurに繋げる
-    Token(TokenKind kind, Token *cur, char *str,int len)
-    {
-        this->kind = kind;
-        this->str = str;
-        cur->next = this;
-        this->len = len;
-    }
-    Token(){};
-};
 
 
 // エラー箇所を報告する
@@ -44,6 +28,10 @@ void error(const char *loc, const char *fmt, ...)
     fprintf(stderr, "\n");
     exit(1);
 }
+void error(const char *str,...){
+    fprintf(stderr, "%s\n",str);
+}
+
 
 // 次のトークンが期待している記号のときには、トークンを1つ読み進めて
 // 真を返す。それ以外の場合には偽を返す。
@@ -58,15 +46,24 @@ bool consume(const char *op)
     return true;
 }
 
+Token *consume_ident(){
+    if(token->kind == TK_IDENT)
+        return token;
+    else return NULL;
+}
+
 // 次のトークンが期待している記号のときには、トークンを1つ読み進める。
 // それ以外の場合にはエラーを報告する。
 void expect(const char *op)
 {
     if (token->kind != TK_RESERVED || 
         token->len != strlen(op) ||
-        memcmp(token->str,op,token->len))
-        error(token->str, "'%s'は'%s'ではありません", token->str, op);
-    
+        memcmp(token->str,op,token->len)){
+        char str[100];
+        strncpy(str,token->str,token->len);
+        str[token->len] = '\0';
+        error(token->str, "'%s'は'%s'ではありません", str, op);
+    }
     token = token->next;
 }
 
@@ -87,6 +84,10 @@ bool at_eof(){
 
 bool startswith(const char*p, const char *q){
   return !memcmp(p,q,strlen(q));
+}
+
+bool canBeVariable(char *p){
+    return 'A' <= *p && *p <= 'z' || *p == '_';
 }
 
 // 入力文字列pをトークナイズしてそれを返す
@@ -114,9 +115,18 @@ Token *tokenize(char *p)
              continue;
            }
 
-        if (strchr("+-*/()<>",*p))
+        if (strchr("+-*/()<>;=",*p))
         {
             cur = new Token(TK_RESERVED, cur, p++,1);
+            continue;
+        }
+
+        if(canBeVariable(p)){
+            int cnt = 0;
+            while(canBeVariable(p+cnt))cnt++;
+            cur = new Token(TK_IDENT,cur,p,cnt);
+            p += cnt;
+            cur->len = 1;
             continue;
         }
 
@@ -128,6 +138,7 @@ Token *tokenize(char *p)
             cur->len = p-q;
             continue;
         }
+
 
         error(token->str, "トークナイズできません");
     }
