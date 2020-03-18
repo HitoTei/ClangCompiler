@@ -46,6 +46,14 @@ bool consume(const char *op)
     return true;
 }
 
+bool consume_same_kind(TokenKind kind){
+    if(kind == token->kind){
+        token = token->next;
+        return true;
+    }
+    return false;
+}
+
 Token *consume_ident(){
     if(token->kind == TK_IDENT)
         return token;
@@ -121,9 +129,15 @@ Token *tokenize(char *p)
             continue;
         }
 
+        if(strncmp(p,"return",6) == 0 && !canBeVariable(p+6)){
+            cur = new Token(TK_RETURN,cur,p,6);
+            p += 6;
+            continue;
+        }
+
         if(canBeVariable(p)){
             int cnt = 0;
-            while(canBeVariable(p+cnt))cnt++;
+            while(canBeVariable(p+cnt) || isdigit(*(p+cnt)))cnt++;
             cur = new Token(TK_IDENT,cur,p,cnt);
             p += cnt;
             cur->len = 1;

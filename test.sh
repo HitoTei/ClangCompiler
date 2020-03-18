@@ -49,5 +49,5 @@ try 1 '1>=1;'
 try 0 '1>=2;'
 
 try 10 'a = 100;b = 90;a - b;'
-try 10 'abc = 100;def = 90;abc - def;'
+try 10 'abc = 100;def = 90;return abc - def;'
 echo OK

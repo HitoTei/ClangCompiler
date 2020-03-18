@@ -14,6 +14,7 @@ enum TokenKind
     TK_RESERVED, // 記号
     TK_IDENT,    // 識別子
     TK_NUM,      // 整数トークン
+    TK_RETURN,   // リターン
     TK_EOF,      // 入力の終わりを表すトークン
 };
 
@@ -45,6 +46,7 @@ Token *tokenize(char *p);
 bool at_eof();
 Token *consume_ident();
 void error(const char *str,...);
+bool consume_same_kind(TokenKind kind);
 
 // codegen
 void gen(Node *node);
