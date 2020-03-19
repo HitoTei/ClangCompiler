@@ -54,4 +54,6 @@ try 10 'abc = 100;def = 90;return abc - def;'
 try 1 'if(1)return 1;'
 try 2 'if(0)return 1-11; else return 1+1;'
 
+try 10 'i=0; while(i<10) i=i+1; return i;'
+
 echo OK

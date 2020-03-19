@@ -15,6 +15,7 @@ enum NodeKind
     ND_ASSIGN, // =
     ND_RETURN, // リターン
     ND_IF,     // if
+    ND_WHILE,  // while
     ND_LVAR    // ローカル変数
 };
 
@@ -55,7 +56,9 @@ void gen_lval(Node *node) {
 }
 
 void gen(Node *node) {
-  switch (node->kind)
+  
+  static int labelseq = 1;
+  switch (node->kind) // 予約語
   {
    case ND_RETURN: {
     gen(node->lhs);
@@ -66,7 +69,6 @@ void gen(Node *node) {
     return;
   }
   case ND_IF: {
-    static int labelseq = 1;
     int seq = labelseq++;
     if (node->els) {
       gen(node->cond);
@@ -89,9 +91,21 @@ void gen(Node *node) {
     }
     return;
   }
+  case ND_WHILE:{
+    int seq = labelseq++;
+    printf(".L.begin.%d:\n", seq);
+    gen(node->cond);
+    printf("  pop rax\n");
+    printf("  cmp rax, 0\n");
+    printf("  je  .L.end.%d\n", seq);
+    gen(node->then);
+    printf("  jmp .L.begin.%d\n", seq);
+    printf(".L.end.%d:\n", seq);
+    return;
+  }
   }
 
-  switch (node->kind) {
+  switch (node->kind) { // 数字や変数や代入
   case ND_NUM:
     printf("  push %d\n", node->val);
     return;
@@ -193,6 +207,14 @@ Node *stmt(){
     node->then = stmt();
     if(consume("else"))
       node->els = stmt();
+    return node;
+  }else if(consume("while")){
+    node = new Node();
+    node->kind = ND_WHILE;
+    expect("(");
+    node->cond = expr();
+    expect(")");
+    node->then = stmt();
     return node;
   }else{
     node = expr();

@@ -101,7 +101,7 @@ bool canBeVariable(char p){
 
 // 予約語ならそれを返す。そうでないならNULLを返す
 const char* starts_with_word(const char *p){
-    constexpr char const *const reserved[] = {"return","if","else"};
+    constexpr char const *const reserved[] = {"return","if","else","while"};
     for(auto&& key : reserved){
         int len = strlen(key);
         if(startswith(p,key) && !canBeVariable(p[len]))
