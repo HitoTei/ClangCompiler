@@ -16,6 +16,8 @@ enum NodeKind
     ND_RETURN, // リターン
     ND_IF,     // if
     ND_WHILE,  // while
+    ND_FOR,    // for
+    ND_BLOCK,  // ブロック{}
     ND_LVAR    // ローカル変数
 };
 
@@ -31,6 +33,14 @@ struct Node
     Node *then;
     Node *els = NULL;
     
+    // "for"
+    Node *init;
+    Node *inc;
+
+    // "block"
+    Node *body;
+    Node *next;
+
     int val;       // kindがND_NUMの場合のみ使う
     int offset;    // kindがND_LVARの場合のみ使う
     
@@ -47,8 +57,9 @@ struct Node
 };
 
 void gen_lval(Node *node) {
-  if (node->kind != ND_LVAR)
+  if (node->kind != ND_LVAR){
     error("代入の左辺値が変数ではありません");
+  }
 
   printf("  mov rax, rbp\n");
   printf("  sub rax, %d\n", node->offset);
@@ -101,6 +112,28 @@ void gen(Node *node) {
     gen(node->then);
     printf("  jmp .L.begin.%d\n", seq);
     printf(".L.end.%d:\n", seq);
+    return;
+  }
+  case ND_FOR:{
+    int seq = labelseq++;
+    if (node->init)
+      gen(node->init);
+    printf(".L.begin.%d:\n", seq);
+    if (node->cond) {
+      gen(node->cond);
+      printf("  pop rax\n");
+      printf("  cmp rax, 0\n");
+      printf("  je  .L.end.%d\n", seq);
+    }
+    gen(node->then);
+    if (node->inc)
+      gen(node->inc);
+    printf("  jmp .L.begin.%d\n", seq);
+    printf(".L.end.%d:\n", seq);
+    return;
+  }
+  case ND_BLOCK: {
+    for(Node *n = node->body;n;n = n->next)gen(n);
     return;
   }
   }
@@ -194,6 +227,23 @@ void program(){
 
 Node *stmt(){
   Node *node;
+  if(consume("{")){
+    Node head = {};
+    Node *cur = &head;
+    while(!consume("}")){
+      cur->next = stmt();
+      cur = cur->next; // next -> lhs
+    }
+
+    Node *node = new Node();
+    node->kind = ND_BLOCK;
+    node->body = head.next;
+
+    return node;
+  }
+
+
+
   if(consume("return")){
     node = new Node();
     node->kind = ND_RETURN;
@@ -214,6 +264,23 @@ Node *stmt(){
     expect("(");
     node->cond = expr();
     expect(")");
+    node->then = stmt();
+    return node;
+  }else if(consume("for")){
+    node = new Node();
+    node ->kind = ND_FOR;
+    expect("(");
+    if(!consume(";")){
+      node->init = stmt();
+    }
+    if(!consume(";")){
+      node->cond = expr();
+      expect(";");
+    }
+    if(!consume(")")){
+      node->inc = expr();
+      expect(")");
+    }
     node->then = stmt();
     return node;
   }else{
@@ -320,6 +387,7 @@ Node *primary() {
     string str = string(tok->str);
     str = str.substr(0,tok->len);
     int lvar = locals[str];
+
     if(lvar != 0){
       node->offset = lvar;
     }else{
