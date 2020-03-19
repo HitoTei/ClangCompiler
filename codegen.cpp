@@ -14,6 +14,7 @@ enum NodeKind
     ND_NUM, // 整数
     ND_ASSIGN, // =
     ND_RETURN, // リターン
+    ND_IF,     // if
     ND_LVAR    // ローカル変数
 };
 
@@ -23,6 +24,12 @@ struct Node
     NodeKind kind; // ノードの型
     Node *lhs;     // 左辺
     Node *rhs;     // 右辺
+  
+    // "if" statement
+    Node *cond;
+    Node *then;
+    Node *els = NULL;
+    
     int val;       // kindがND_NUMの場合のみ使う
     int offset;    // kindがND_LVARの場合のみ使う
     
@@ -48,13 +55,40 @@ void gen_lval(Node *node) {
 }
 
 void gen(Node *node) {
-  if (node->kind == ND_RETURN) {
+  switch (node->kind)
+  {
+   case ND_RETURN: {
     gen(node->lhs);
     printf("  pop rax\n");
     printf("  mov rsp, rbp\n");
     printf("  pop rbp\n");
     printf("  ret\n");
     return;
+  }
+  case ND_IF: {
+    static int labelseq = 1;
+    int seq = labelseq++;
+    if (node->els) {
+      gen(node->cond);
+      printf("  pop rax\n");
+      printf("  cmp rax, 0\n");
+      printf("  je  .L.else.%d\n", seq);
+      gen(node->then);
+      printf("  jmp .L.end.%d\n", seq);
+      printf(".L.else.%d:\n", seq);
+      gen(node->els);
+      printf(".L.end.%d:\n", seq);
+    } else {
+
+      gen(node->cond);
+      printf("  pop rax\n");
+      printf("  cmp rax, 0\n");
+      printf("  je  .L.end.%d\n", seq);
+      gen(node->then);
+      printf(".L.end.%d:\n", seq);
+    }
+    return;
+  }
   }
 
   switch (node->kind) {
@@ -84,6 +118,7 @@ void gen(Node *node) {
   printf("  pop rdi\n");
   printf("  pop rax\n");
 
+  // 演算
   switch (node->kind) {
   case ND_ADD: // +
     printf("  add rax, rdi\n");
@@ -145,14 +180,25 @@ void program(){
 
 Node *stmt(){
   Node *node;
-  if(consume_same_kind(TK_RETURN)){
+  if(consume("return")){
     node = new Node();
     node->kind = ND_RETURN;
     node->lhs  = expr();
+  }else if(consume("if")){
+    node = new Node();
+    node->kind = ND_IF;
+    expect("(");
+    node->cond = expr();
+    expect(")");
+    node->then = stmt();
+    if(consume("else"))
+      node->els = stmt();
+    return node;
   }else{
     node = expr();
   }
   expect(";");
+
   return node;
 }
 
