@@ -18,6 +18,7 @@ enum NodeKind
     ND_WHILE,  // while
     ND_FOR,    // for
     ND_BLOCK,  // ブロック{}
+    ND_FUNCALL,// 関数
     ND_LVAR    // ローカル変数
 };
 
@@ -40,6 +41,9 @@ struct Node
     // "block"
     Node *body;
     Node *next;
+
+    // "funcall"
+    std::string funcname;
 
     int val;       // kindがND_NUMの場合のみ使う
     int offset;    // kindがND_LVARの場合のみ使う
@@ -79,6 +83,10 @@ void gen(Node *node) {
     printf("  ret\n");
     return;
   }
+  case ND_FUNCALL:
+  printf("  call %s\n", (node->funcname).c_str());
+  printf("  push rax\n");
+  return;
   case ND_IF: {
     int seq = labelseq++;
     if (node->els) {
@@ -367,7 +375,10 @@ using std::string;
 map<string,int> locals; // ローカル変数<名前,RBPからのオフセット>
 
 
-// primary    = num | ident | "(" expr ")"
+/* primary  = num 
+            | ident ("(" ")")? 
+            | "(" expr ")"
+*/
 Node *primary() {
 
   // 次のトークンが"("なら、"(" expr ")"のはず
@@ -380,12 +391,27 @@ Node *primary() {
 
   Token *tok = consume_ident();
   if (tok) {
-
-    Node *node = (Node*)calloc(1, sizeof(Node));
-    node->kind = ND_LVAR;
-    
+  
     string str = string(tok->str);
     str = str.substr(0,tok->len);
+
+    token = tok->next;
+    if(consume("(")){
+
+      expect(")");
+      Node *node = new Node();
+      node->kind = ND_FUNCALL;
+
+
+      node->funcname = str;
+      return node;
+    }
+
+
+
+    Node *node = new Node();
+    node->kind = ND_LVAR;
+    
     int lvar = locals[str];
 
     if(lvar != 0){
@@ -396,9 +422,9 @@ Node *primary() {
       locals[str]  = offset;
     }
 
-    token = tok->next;
     return node;
   }
+
   // そうでなければ数値のはず
   return new Node(expect_number());
 }

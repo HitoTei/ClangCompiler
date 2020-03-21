@@ -153,7 +153,6 @@ Token *tokenize(char *p)
             while(canBeVariable(p[cnt]) || isdigit(*(p+cnt)))cnt++;
             cur = new Token(TK_IDENT,cur,p,cnt);
             p += cnt;
-            cur->len = 1;
             continue;
         }
 
